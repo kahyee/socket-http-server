@@ -1,5 +1,6 @@
 import socket
 import sys
+import mimetypes
 
 def response_ok(body=b"This is a minimal response", mimetype=b"text/plain"):
     """
@@ -17,7 +18,12 @@ def response_ok(body=b"This is a minimal response", mimetype=b"text/plain"):
         <html><h1>Welcome:</h1></html>\r\n
         '''
     """
-    pass
+    return b"\r\n".join([
+        b"HTTP/1.1 200 OK",
+        b"Content-Type: " + mimetype,
+        b"",
+        body
+        ])
 
 
 def parse_request(request):
@@ -27,17 +33,32 @@ def parse_request(request):
     This server only handles GET requests, so this method shall raise a
     NotImplementedError if the method of the request is not GET.
     """
-    pass
+    method, path, version = request.split("\r\n")[0].split(" ")
+    
+    if method != 'GET':
+        raise NotImplementedError
+        
+    return path
 
 
 def response_method_not_allowed():
     """Returns a 405 Method Not Allowed response"""
-    pass
+    
+    return b'\r\n'.join([
+        b'HTTP/1.1 405 Method Not Allowed',
+        b'',
+        b'You can\'t do that on this server'
+        ])
 
 
 def response_not_found():
     """Returns a 404 Not Found response"""
-    pass
+    
+    return b'\r\n'.join([
+        b'HTTP/1.1 404 Not Found',
+        b'',
+        b'You can\'t do that on this server'
+        ])
     
 
 def resolve_uri(uri):
@@ -74,6 +95,13 @@ def resolve_uri(uri):
     # TODO: Fill in the appropriate content and mime_type give the URI.
     # See the assignment guidelines for help on "mapping mime-types", though
     # you might need to create a special case for handling make_time.py
+    file_path = 'webroot' + uri
+    
+    f = open(file_path, 'rb')
+    
+    data = f.read()
+    print(data)
+    
     content = b"not implemented"
     mime_type = b"not implemented"
 
@@ -94,16 +122,30 @@ def server(log_buffer=sys.stderr):
             conn, addr = sock.accept()  # blocking
             try:
                 print('connection - {0}:{1}'.format(*addr), file=log_buffer)
+                
+                request = ''
                 while True:
                     data = conn.recv(16)
-                    print('received "{0}"'.format(data), file=log_buffer)
-                    if data:
-                        print('sending data back to client', file=log_buffer)
-                        conn.sendall(data)
-                    else:
-                        msg = 'no more data from {0}:{1}'.format(*addr)
-                        print(msg, log_buffer)
+                    request += data.decode('utf8')
+                    
+                    if '\r\n\r\n' in request:
                         break
+                    
+                print('Request received \n{}\n\n'.format(request))
+                
+                try:
+                    path = parse_request(request)
+                    
+                    response = response_ok(
+                        body = b'welcome to my web server',
+                        mimetype = b'plaintext'
+                        )
+                except NotImplementedError:
+                    response = response_method_not_allowed()
+                
+                conn.sendall(response)
+            except:
+                traceback.print_exc()
             finally:
                 conn.close()
 
